@@ -1,6 +1,8 @@
 import React from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import axios from "axios";
 
 const Header = () => {
   const { isLoggedIn, logout } = useAuth();
@@ -50,7 +52,6 @@ const HeroSection = () => {
   const handleGetStarted = () => {
     navigate("/register");
   };
-
   return (
     <div className="bg-primary text-white text-center py-5">
       <div className="container">
@@ -94,38 +95,94 @@ const Features = () => {
   );
 };
 
+
 const PopularCourses = () => {
-  const courses = [
-    { id: 1, name: "Web Development", description: "Learn HTML, CSS, and JavaScript." },
-    { id: 2, name: "Data Science", description: "Master Python and data visualization." },
-    { id: 3, name: "AI and Machine Learning", description: "Dive into neural networks and AI." },
-  ];
+  const [courses, setCourses] = useState([]);
+  const [enrolledCourses, setEnrolledCourses] = useState(new Set()); // Store enrolled courses
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/getAllCourses");
+        if (!response.ok) throw new Error("Failed to fetch courses");
+
+        const data = await response.json();
+        setCourses(data.courses || []); // Ensure it's an array
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchEnrolledCourses = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const response = await axios.get("http://localhost:8000/api/getEnrolledCourses", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        console.log("Enrolled Courses (Frontend):", response.data.enrolledCourses);
+
+        if (response.data.enrolledCourses) {
+          setEnrolledCourses(new Set(response.data.enrolledCourses.map(course => course.toString())));
+        }
+      } catch (err) {
+        console.error("Error fetching enrolled courses:", err);
+      }
+    };
+
+    fetchCourses();
+    fetchEnrolledCourses();
+  }, []);
+
+  if (loading) return <p>Loading courses...</p>;
+  if (error) return <p>Error: {error}</p>;
 
   return (
     <div className="py-5">
       <div className="container">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-  <h2>Popular Courses</h2>
-  <a href="/searchcourse" className="btn btn-link">See More</a>
-</div>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h2>Popular Courses</h2>
+          <a href="/searchcourse" className="btn btn-link">See More</a>
+        </div>
 
         <div className="row">
-          {courses.map((course) => (
-            <div key={course.id} className="col-md-4 mb-4">
-              <div className="card shadow-sm">
-                <div className="card-body">
-                  <h5 className="card-title">{course.name}</h5>
-                  <p className="card-text">{course.description}</p>
-                  <button className="btn btn-primary">Enroll Now</button>
+          {courses.length === 0 ? (
+            <p>No courses available.</p>
+          ) : (
+            courses.map((course) => {
+              console.log(`Checking Course ID: ${course._id}, Enrolled: ${enrolledCourses.has(course._id.toString())}`);
+              return (
+                <div key={course._id} className="col-md-4 mb-4">
+                  <div className="card shadow-sm">
+                    <div className="card-body">
+                      <h5 className="card-title">{course.title}</h5>
+                      <p className="card-text">{course.description}</p>
+                      {enrolledCourses.has(course._id.toString()) ? (
+                        <button className="btn btn-success" disabled>Enrolled</button>
+                      ) : (
+                        <button className="btn btn-primary" onClick={() => navigate(`/viewcourse/${course._id}`)}>Enroll Now</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })
+          )}
         </div>
       </div>
     </div>
   );
 };
+
+
+
 
 const Footer = () => {
   return (
